@@ -1,0 +1,1062 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SQL Query AI Agent</title>
+<meta name="description" content="Schema-aware, read-only SQL assistant powered by LangGraph. Ask in plain English, get safe validated SQL instantly."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..900;1,14..32,300..900&family=JetBrains+Mono:wght@400;500;600&display=swap"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark-dimmed.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════
+   DESIGN TOKENS
+═══════════════════════════════════════════════ */
+:root {
+  /* surfaces */
+  --c-base:      #060810;
+  --c-surface:   #0d1117;
+  --c-raised:    #161b24;
+  --c-overlay:   #1c2330;
+  --c-glass:     rgba(22,27,36,0.6);
+
+  /* borders */
+  --c-border:    rgba(255,255,255,0.07);
+  --c-border2:   rgba(255,255,255,0.12);
+  --c-border-hi: rgba(255,255,255,0.18);
+
+  /* text */
+  --c-text:      #e6edf3;
+  --c-muted:     #8b949e;
+  --c-faint:     #484f58;
+
+  /* accents */
+  --c-blue:      #3b82f6;
+  --c-blue-lo:   rgba(59,130,246,0.12);
+  --c-blue-glow: rgba(59,130,246,0.35);
+  --c-purple:    #a855f7;
+  --c-purple-lo: rgba(168,85,247,0.12);
+  --c-cyan:      #06b6d4;
+  --c-green:     #22c55e;
+  --c-red:       #ef4444;
+  --c-amber:     #f59e0b;
+
+  /* radius */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+
+  /* shadow */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4),0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.5),0 2px 6px rgba(0,0,0,0.4);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.6),0 4px 12px rgba(0,0,0,0.4);
+  --shadow-glow: 0 0 40px var(--c-blue-glow);
+
+  font-family:'Inter',system-ui,sans-serif;
+  color:var(--c-text);
+  background:var(--c-base);
+}
+*,::before,::after{box-sizing:border-box;margin:0;padding:0;}
+
+/* ═══════════════════════════════════════════════
+   ANIMATED BACKGROUND
+═══════════════════════════════════════════════ */
+body {
+  min-height:100vh;
+  background:var(--c-base);
+  overflow-x:hidden;
+}
+.bg-mesh {
+  position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+}
+.bg-mesh::before {
+  content:'';position:absolute;
+  width:900px;height:900px;
+  top:-300px;left:-200px;
+  background:radial-gradient(circle,rgba(59,130,246,0.09) 0%,transparent 65%);
+  animation:drift1 18s ease-in-out infinite alternate;
+}
+.bg-mesh::after {
+  content:'';position:absolute;
+  width:700px;height:700px;
+  bottom:-200px;right:-150px;
+  background:radial-gradient(circle,rgba(168,85,247,0.08) 0%,transparent 65%);
+  animation:drift2 22s ease-in-out infinite alternate;
+}
+.bg-mesh-extra {
+  position:absolute;
+  width:500px;height:500px;
+  top:40%;left:50%;transform:translate(-50%,-50%);
+  background:radial-gradient(circle,rgba(6,182,212,0.05) 0%,transparent 65%);
+  animation:drift3 14s ease-in-out infinite alternate;
+}
+@keyframes drift1{0%{transform:translate(0,0) scale(1);}100%{transform:translate(80px,60px) scale(1.1);}}
+@keyframes drift2{0%{transform:translate(0,0) scale(1);}100%{transform:translate(-60px,-80px) scale(1.15);}}
+@keyframes drift3{0%{transform:translate(-50%,-50%) scale(1);}100%{transform:translate(-48%,-52%) scale(1.2);}}
+
+/* ═══════════════════════════════════════════════
+   LAYOUT
+═══════════════════════════════════════════════ */
+.shell {
+  position:relative;z-index:1;
+  max-width:1320px;margin:0 auto;
+  padding:20px 24px 48px;
+  display:flex;flex-direction:column;gap:20px;
+}
+
+/* ═══════════════════════════════════════════════
+   TOP NAV BAR
+═══════════════════════════════════════════════ */
+.topbar {
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--c-glass);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid var(--c-border);
+  border-radius:var(--r-lg);
+  padding:10px 16px;
+  box-shadow:var(--shadow-md);
+}
+.brand {display:flex;align-items:center;gap:12px;}
+.logo-mark {
+  width:36px;height:36px;border-radius:10px;
+  background:linear-gradient(135deg,#3b82f6 0%,#8b5cf6 50%,#06b6d4 100%);
+  display:grid;place-items:center;
+  font-size:11px;font-weight:800;letter-spacing:-0.5px;color:#fff;
+  box-shadow:0 0 20px rgba(139,92,246,0.4);
+  position:relative;
+}
+.logo-mark::after {
+  content:'';position:absolute;inset:-1px;border-radius:11px;
+  background:linear-gradient(135deg,rgba(255,255,255,0.2),transparent);
+  pointer-events:none;
+}
+.brand-text h1 {font-size:15px;font-weight:700;letter-spacing:-0.3px;}
+.brand-text p {font-size:11px;color:var(--c-muted);margin-top:1px;}
+
+.topbar-right {display:flex;align-items:center;gap:12px;}
+.badge {
+  display:flex;align-items:center;gap:6px;
+  font-size:11px;padding:5px 10px;border-radius:999px;
+  border:1px solid var(--c-border);color:var(--c-muted);
+  background:rgba(0,0,0,0.2);
+  transition:all .2s;
+}
+.badge.live {border-color:rgba(34,197,94,0.3);color:var(--c-green);}
+.badge.live .dot {background:var(--c-green);box-shadow:0 0 8px rgba(34,197,94,0.7);}
+.badge.dead {border-color:rgba(239,68,68,0.3);color:var(--c-red);}
+.badge.dead .dot {background:var(--c-red);}
+.dot {width:5px;height:5px;border-radius:50%;background:var(--c-faint);}
+
+/* schema badges */
+.schema-chips {display:flex;gap:6px;flex-wrap:wrap;}
+.chip {
+  font-size:10px;font-family:'JetBrains Mono',monospace;
+  padding:3px 8px;border-radius:999px;
+  border:1px solid var(--c-border);
+  color:var(--c-muted);background:rgba(255,255,255,0.04);
+  transition:all .2s;
+}
+.chip:hover {border-color:var(--c-border2);color:var(--c-text);}
+
+/* ═══════════════════════════════════════════════
+   TAB NAVIGATION
+═══════════════════════════════════════════════ */
+.tab-nav {
+  display:flex;gap:2px;
+  background:rgba(0,0,0,0.25);
+  border:1px solid var(--c-border);
+  border-radius:var(--r-md);
+  padding:3px;
+  width:fit-content;
+}
+.tab-btn {
+  display:flex;align-items:center;gap:7px;
+  padding:7px 16px;border-radius:7px;
+  font-size:13px;font-weight:500;
+  color:var(--c-muted);background:transparent;
+  border:none;cursor:pointer;
+  transition:all .18s cubic-bezier(0.4,0,0.2,1);
+  white-space:nowrap;
+  position:relative;
+}
+.tab-btn .tab-icon {font-size:14px;}
+.tab-btn:hover {color:var(--c-text);background:rgba(255,255,255,0.05);}
+.tab-btn.active {
+  color:var(--c-text);
+  background:var(--c-raised);
+  box-shadow:var(--shadow-sm),0 0 0 1px var(--c-border);
+}
+.tab-btn.active::before {
+  content:'';position:absolute;top:50%;left:10px;
+  transform:translateY(-50%);
+  width:3px;height:14px;border-radius:2px;
+  background:linear-gradient(to bottom,var(--c-blue),var(--c-purple));
+}
+
+/* ═══════════════════════════════════════════════
+   MAIN GRID
+═══════════════════════════════════════════════ */
+.workspace {display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start;}
+@media(max-width:960px){.workspace{grid-template-columns:1fr;}}
+
+/* tab panels */
+.tab-panel {display:none;}
+.tab-panel.active {display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start;}
+@media(max-width:960px){.tab-panel.active{grid-template-columns:1fr;}}
+
+/* ═══════════════════════════════════════════════
+   GLASS CARD
+═══════════════════════════════════════════════ */
+.card {
+  background:var(--c-glass);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid var(--c-border);
+  border-radius:var(--r-xl);
+  box-shadow:var(--shadow-md);
+  overflow:hidden;
+  position:relative;
+}
+.card::before {
+  content:'';position:absolute;
+  top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.1),transparent);
+  pointer-events:none;
+}
+
+/* ═══════════════════════════════════════════════
+   CHAT MESSAGES
+═══════════════════════════════════════════════ */
+.chat-main {display:flex;flex-direction:column;height:100%;}
+.messages {
+  flex:1;
+  height:clamp(380px,52vh,600px);
+  overflow-y:auto;
+  padding:20px;
+  display:flex;flex-direction:column;gap:12px;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,0.1) transparent;
+}
+.messages::-webkit-scrollbar{width:4px;}
+.messages::-webkit-scrollbar-track{background:transparent;}
+.messages::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px;}
+
+.empty-state {
+  margin:auto;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:16px;
+}
+.empty-icon {
+  width:56px;height:56px;border-radius:16px;
+  background:linear-gradient(135deg,var(--c-blue-lo),var(--c-purple-lo));
+  border:1px solid var(--c-border2);
+  display:grid;place-items:center;font-size:22px;
+  box-shadow:0 0 30px rgba(59,130,246,0.1);
+}
+.empty-title {font-size:15px;font-weight:600;color:var(--c-text);}
+.empty-subs {display:flex;flex-direction:column;gap:6px;margin-top:4px;}
+.empty-sub {
+  font-size:12px;color:var(--c-muted);
+  background:rgba(255,255,255,0.04);
+  border:1px solid var(--c-border);
+  border-radius:var(--r-md);
+  padding:6px 14px;cursor:pointer;
+  transition:all .18s;
+  text-align:left;
+}
+.empty-sub:hover {background:var(--c-raised);border-color:var(--c-border2);color:var(--c-text);}
+.empty-sub kbd {
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;color:var(--c-blue);margin-right:6px;
+}
+
+/* messages */
+.msg-row {display:flex;flex-direction:column;gap:3px;}
+.msg-row.user {align-items:flex-end;}
+.msg-row.bot  {align-items:flex-start;}
+
+.msg-meta {
+  font-size:10px;color:var(--c-faint);padding:0 4px;
+  display:flex;align-items:center;gap:6px;
+}
+.avatar {
+  width:18px;height:18px;border-radius:5px;
+  display:grid;place-items:center;font-size:9px;
+}
+.avatar.user-av {background:linear-gradient(135deg,#3b82f6,#8b5cf6);}
+.avatar.bot-av  {background:linear-gradient(135deg,#0d9488,#3b82f6);}
+
+.msg-bubble {
+  max-width:82%;padding:11px 15px;
+  border-radius:16px;font-size:13.5px;line-height:1.6;
+  white-space:pre-wrap;word-break:break-word;
+  position:relative;
+  /* entry animation */
+  animation:bubble-in .25s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+@keyframes bubble-in {
+  from{opacity:0;transform:scale(0.92) translateY(6px);}
+  to  {opacity:1;transform:scale(1) translateY(0);}
+}
+.msg-row.user .msg-bubble {
+  background:linear-gradient(135deg,rgba(59,130,246,0.22),rgba(139,92,246,0.18));
+  border:1px solid rgba(59,130,246,0.25);
+  border-bottom-right-radius:4px;
+}
+.msg-row.bot .msg-bubble {
+  background:rgba(255,255,255,0.04);
+  border:1px solid var(--c-border);
+  border-bottom-left-radius:4px;
+}
+.msg-row.err .msg-bubble {
+  align-self:flex-start;
+  background:rgba(239,68,68,0.08);
+  border:1px solid rgba(239,68,68,0.2);
+  color:#fca5a5;
+  border-bottom-left-radius:4px;
+}
+
+/* typing indicator */
+.typing-bubble {
+  display:flex;gap:5px;align-items:center;
+  padding:12px 16px;
+  background:rgba(255,255,255,0.04);
+  border:1px solid var(--c-border);
+  border-radius:16px;border-bottom-left-radius:4px;
+  align-self:flex-start;
+  animation:bubble-in .2s ease both;
+}
+.typing-bubble span {
+  width:6px;height:6px;border-radius:50%;
+  background:var(--c-blue);
+  animation:pulse-dot 1.4s ease-in-out infinite;
+}
+.typing-bubble span:nth-child(2){animation-delay:.2s;}
+.typing-bubble span:nth-child(3){animation-delay:.4s;}
+@keyframes pulse-dot{0%,60%,100%{transform:translateY(0);opacity:.5;}30%{transform:translateY(-5px);opacity:1;}}
+
+/* ═══════════════════════════════════════════════
+   COMPOSER
+═══════════════════════════════════════════════ */
+.composer {
+  border-top:1px solid var(--c-border);
+  padding:12px 16px;
+  display:flex;flex-direction:column;gap:8px;
+  background:rgba(0,0,0,0.15);
+}
+.composer-row {display:flex;gap:10px;align-items:flex-end;}
+.composer-input-wrap {flex:1;position:relative;}
+.composer textarea {
+  width:100%;resize:none;
+  min-height:48px;max-height:140px;
+  background:rgba(255,255,255,0.04);
+  color:var(--c-text);
+  border:1px solid var(--c-border);
+  border-radius:var(--r-md);
+  padding:12px 14px;
+  font-family:inherit;font-size:14px;line-height:1.5;
+  outline:none;
+  transition:border-color .15s,box-shadow .15s;
+  scrollbar-width:thin;
+}
+.composer textarea:focus {
+  border-color:rgba(59,130,246,0.4);
+  box-shadow:0 0 0 3px rgba(59,130,246,0.08);
+}
+.composer textarea::placeholder{color:var(--c-faint);}
+.send-btn {
+  width:44px;height:44px;border-radius:var(--r-md);
+  background:linear-gradient(135deg,var(--c-blue),var(--c-purple));
+  border:none;cursor:pointer;
+  display:grid;place-items:center;
+  font-size:18px;
+  transition:all .18s cubic-bezier(0.4,0,0.2,1);
+  box-shadow:0 0 20px rgba(59,130,246,0.3);
+  flex-shrink:0;
+}
+.send-btn:hover:not(:disabled){transform:scale(1.05);box-shadow:0 0 28px rgba(59,130,246,0.5);}
+.send-btn:active:not(:disabled){transform:scale(0.97);}
+.send-btn:disabled{opacity:.35;cursor:not-allowed;box-shadow:none;}
+.send-btn svg{width:18px;height:18px;fill:white;}
+
+.hint-bar {display:flex;gap:8px;align-items:center;}
+.hint-text{font-size:11px;color:var(--c-faint);}
+.kbd{
+  font-size:10px;font-family:'JetBrains Mono',monospace;
+  padding:2px 5px;border-radius:4px;
+  background:rgba(255,255,255,0.06);
+  border:1px solid var(--c-border);
+  color:var(--c-muted);
+}
+
+/* ═══════════════════════════════════════════════
+   RIGHT PANEL
+═══════════════════════════════════════════════ */
+.right-col {display:flex;flex-direction:column;gap:14px;}
+
+.panel-card {
+  background:var(--c-glass);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid var(--c-border);
+  border-radius:var(--r-xl);
+  box-shadow:var(--shadow-md);
+  overflow:hidden;
+  position:relative;
+}
+.panel-card::before {
+  content:'';position:absolute;
+  top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent);
+  pointer-events:none;
+}
+
+.panel-section {
+  padding:14px 16px;
+  border-bottom:1px solid var(--c-border);
+}
+.panel-section:last-child{border-bottom:none;}
+
+.section-header {
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:10px;
+}
+.section-label {
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;
+  color:var(--c-faint);
+  display:flex;align-items:center;gap:6px;
+}
+.section-label-icon{font-size:12px;}
+.btn-group{display:flex;gap:5px;}
+
+/* mini icon buttons */
+.icon-btn {
+  display:flex;align-items:center;gap:4px;
+  padding:4px 9px;border-radius:var(--r-sm);
+  font-size:11px;font-weight:500;
+  color:var(--c-muted);background:transparent;
+  border:1px solid var(--c-border);cursor:pointer;
+  transition:all .15s;
+}
+.icon-btn:hover{background:rgba(255,255,255,0.07);color:var(--c-text);border-color:var(--c-border2);}
+.icon-btn:active{transform:scale(0.96);}
+
+/* SQL highlight block */
+.hljs-wrap {
+  position:relative;border-radius:var(--r-md);overflow:hidden;
+  border:1px solid rgba(255,255,255,0.06);
+}
+.hljs-wrap pre {
+  margin:0;padding:12px 14px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;line-height:1.65;
+  max-height:220px;overflow:auto;
+  scrollbar-width:thin;
+  background:#0d1117 !important;
+}
+.hljs-wrap pre code{background:transparent!important;padding:0!important;font-size:12px!important;}
+.sql-placeholder{color:var(--c-faint);font-family:'JetBrains Mono',monospace;font-size:12px;}
+
+/* explanation */
+.explain-text{font-size:13px;line-height:1.65;color:var(--c-muted);}
+
+/* results table */
+.results-table-wrap {
+  border-radius:var(--r-md);overflow:auto;
+  border:1px solid rgba(255,255,255,0.06);
+  max-height:180px;
+  scrollbar-width:thin;
+}
+.results-table{border-collapse:collapse;width:100%;font-size:11.5px;}
+.results-table th{
+  background:#0a0e15;color:var(--c-muted);font-weight:600;
+  padding:6px 10px;border-bottom:1px solid var(--c-border);
+  text-align:left;position:sticky;top:0;white-space:nowrap;
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.3px;
+}
+.results-table td{
+  padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.04);
+  color:var(--c-text);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.results-table tr:last-child td{border-bottom:none;}
+.results-table tr:hover td{background:rgba(255,255,255,0.03);}
+.no-results{font-size:12px;color:var(--c-faint);padding:12px;display:block;}
+
+/* stat badge */
+.stat-row{display:flex;gap:8px;margin-top:8px;}
+.stat{
+  font-size:10.5px;color:var(--c-muted);
+  background:rgba(255,255,255,0.04);
+  border:1px solid var(--c-border);
+  border-radius:5px;padding:3px 8px;
+  font-family:'JetBrains Mono',monospace;
+}
+.stat.success{color:var(--c-green);border-color:rgba(34,197,94,0.2);background:rgba(34,197,94,0.06);}
+.stat.warn{color:var(--c-amber);border-color:rgba(245,158,11,0.2);background:rgba(245,158,11,0.06);}
+.stat.err{color:var(--c-red);border-color:rgba(239,68,68,0.2);background:rgba(239,68,68,0.06);}
+
+/* safety footer */
+.safety-footer{
+  padding:10px 16px;
+  font-size:11px;color:var(--c-faint);
+  display:flex;align-items:center;gap:6px;
+  border-top:1px solid var(--c-border);
+  background:rgba(0,0,0,0.1);
+}
+.safety-footer svg{width:13px;height:13px;flex-shrink:0;fill:var(--c-faint);}
+
+/* ═══════════════════════════════════════════════
+   TOOL TABS (Optimize / Debug)
+═══════════════════════════════════════════════ */
+.tool-layout{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start;}
+@media(max-width:960px){.tool-layout{grid-template-columns:1fr;}}
+
+.tool-card {padding:0;display:flex;flex-direction:column;}
+.tool-header {
+  padding:16px 18px 14px;
+  border-bottom:1px solid var(--c-border);
+  display:flex;align-items:flex-start;justify-content:space-between;
+  gap:12px;
+}
+.tool-header-text h2{font-size:16px;font-weight:700;letter-spacing:-0.3px;}
+.tool-header-text p{font-size:12px;color:var(--c-muted);margin-top:3px;line-height:1.5;}
+
+.tool-body{padding:16px 18px;display:flex;flex-direction:column;gap:14px;}
+.field-label{font-size:11px;font-weight:600;color:var(--c-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
+.code-input {
+  width:100%;resize:vertical;min-height:120px;
+  background:rgba(0,0,0,0.3);
+  color:#79c0ff;
+  border:1px solid var(--c-border);
+  border-radius:var(--r-md);
+  padding:12px 14px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:12.5px;line-height:1.65;
+  outline:none;
+  transition:border-color .15s,box-shadow .15s;
+}
+.code-input:focus{border-color:rgba(59,130,246,0.4);box-shadow:0 0 0 3px rgba(59,130,246,0.08);}
+.code-input::placeholder{color:var(--c-faint);}
+
+.run-btn {
+  display:inline-flex;align-items:center;gap:8px;
+  padding:10px 20px;border-radius:var(--r-md);
+  font-size:13px;font-weight:600;
+  background:linear-gradient(135deg,var(--c-blue),var(--c-purple));
+  color:#fff;border:none;cursor:pointer;
+  transition:all .18s cubic-bezier(0.4,0,0.2,1);
+  box-shadow:0 0 20px rgba(59,130,246,0.25);
+  align-self:flex-start;
+}
+.run-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 0 28px rgba(59,130,246,0.4);}
+.run-btn:active:not(:disabled){transform:translateY(0) scale(0.98);}
+.run-btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;}
+
+.tool-output {
+  background:rgba(0,0,0,0.25);
+  border:1px solid var(--c-border);
+  border-radius:var(--r-md);
+  padding:14px;
+  font-size:13px;line-height:1.7;
+  color:var(--c-muted);
+  min-height:100px;
+  white-space:pre-wrap;
+  word-break:break-word;
+}
+.tool-output.has-content{color:var(--c-text);}
+
+/* info sidebar */
+.info-card{padding:18px;}
+.info-card h3{font-size:13px;font-weight:700;color:var(--c-text);margin-bottom:12px;}
+.info-list{list-style:none;display:flex;flex-direction:column;gap:8px;}
+.info-list li{
+  font-size:12px;color:var(--c-muted);
+  display:flex;align-items:flex-start;gap:8px;
+  line-height:1.5;
+}
+.info-list li::before{content:'→';color:var(--c-blue);flex-shrink:0;font-weight:700;}
+
+.example-label{
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--c-faint);margin-top:16px;margin-bottom:8px;
+}
+.example-code{
+  display:block;
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;color:#79c0ff;
+  background:rgba(0,0,0,0.3);
+  border:1px solid var(--c-border);
+  border-radius:var(--r-sm);
+  padding:7px 10px;
+  cursor:pointer;
+  transition:all .15s;
+  word-break:break-all;
+  margin-bottom:6px;
+}
+.example-code:hover{border-color:var(--c-border2);background:rgba(59,130,246,0.08);}
+
+/* spinner */
+.spinner{
+  display:inline-block;width:13px;height:13px;
+  border:2px solid rgba(255,255,255,0.2);border-top-color:#fff;
+  border-radius:50%;animation:spin .65s linear infinite;vertical-align:middle;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ═══════════════════════════════════════════════
+   UTILITY
+═══════════════════════════════════════════════ */
+.sr-only{position:absolute;width:1px;height:1px;clip:rect(0,0,0,0);overflow:hidden;}
+
+/* reduced-motion */
+@media(prefers-reduced-motion:reduce){
+  *,::before,::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}
+}
+</style>
+</head>
+<body>
+
+<!-- Animated mesh background -->
+<div class="bg-mesh" aria-hidden="true">
+  <div class="bg-mesh-extra"></div>
+</div>
+
+<div class="shell">
+
+  <!-- ══ TOP BAR ══ -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo-mark" aria-hidden="true">SQL</div>
+      <div class="brand-text">
+        <h1>SQL Query AI Agent</h1>
+        <p>Schema-aware &bull; Read-only enforced &bull; LangGraph</p>
+      </div>
+    </div>
+
+    <div class="topbar-right">
+      <div class="schema-chips" aria-label="Available tables">
+        <span class="chip">Employees</span>
+        <span class="chip">Departments</span>
+        <span class="chip">Customers</span>
+        <span class="chip">Orders</span>
+      </div>
+      <div id="statusBadge" class="badge">
+        <div class="dot" id="statusDot"></div>
+        <span id="statusLabel">connecting…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ TAB NAV ══ -->
+  <nav aria-label="Agent modes">
+    <div class="tab-nav" role="tablist">
+      <button class="tab-btn active" role="tab" id="tab-chat"     aria-selected="true"  onclick="switchTab('chat')">
+        <span class="tab-icon">💬</span> Chat
+      </button>
+      <button class="tab-btn" role="tab" id="tab-optimize" aria-selected="false" onclick="switchTab('optimize')">
+        <span class="tab-icon">⚡</span> Optimize SQL
+      </button>
+      <button class="tab-btn" role="tab" id="tab-debug"    aria-selected="false" onclick="switchTab('debug')">
+        <span class="tab-icon">🔍</span> Debug SQL
+      </button>
+    </div>
+  </nav>
+
+  <!-- ══ CHAT TAB ══ -->
+  <div id="panel-chat" class="tab-panel active" role="tabpanel" aria-labelledby="tab-chat">
+    <div class="card chat-main">
+      <!-- Messages -->
+      <div class="messages" id="messages" role="log" aria-live="polite" aria-label="Conversation">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon" aria-hidden="true">🗃️</div>
+          <div>
+            <div class="empty-title">Ask about your database</div>
+            <div class="empty-subs" id="promptSuggestions">
+              <button class="empty-sub" onclick="fillPrompt(this)"><kbd>→</kbd>Show all customers from California</button>
+              <button class="empty-sub" onclick="fillPrompt(this)"><kbd>→</kbd>Which employees earn over $90,000?</button>
+              <button class="empty-sub" onclick="fillPrompt(this)"><kbd>→</kbd>Show employees hired after January 2024</button>
+              <button class="empty-sub" onclick="fillPrompt(this)"><kbd>→</kbd>Total revenue from completed orders</button>
+              <button class="empty-sub" onclick="fillPrompt(this)"><kbd>→</kbd>Employees and their department names</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Composer -->
+      <div class="composer">
+        <div class="composer-row">
+          <div class="composer-input-wrap">
+            <textarea
+              id="chatInput"
+              placeholder="Ask anything about Employees, Customers, Orders, Departments…"
+              rows="2"
+              aria-label="Message input"
+            ></textarea>
+          </div>
+          <button class="send-btn" id="sendBtn" onclick="sendChat()" aria-label="Send message">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+        <div class="hint-bar">
+          <span class="hint-text">Press <kbd class="kbd">Enter</kbd> to send &bull; <kbd class="kbd">Shift+Enter</kbd> for new line</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column -->
+    <aside class="right-col" aria-label="Query output">
+      <div class="panel-card">
+        <!-- SQL Section -->
+        <div class="panel-section">
+          <div class="section-header">
+            <span class="section-label"><span class="section-label-icon">◈</span> Generated SQL</span>
+            <div class="btn-group">
+              <button class="icon-btn" onclick="copySQL()" title="Copy SQL to clipboard">📋 Copy</button>
+              <button class="icon-btn" onclick="downloadSQL()" title="Download .sql file">⬇ .sql</button>
+            </div>
+          </div>
+          <div class="hljs-wrap">
+            <pre><code id="sqlCode" class="language-sql sql-placeholder">-- Awaiting query…</code></pre>
+          </div>
+          <div class="stat-row" id="statRow"></div>
+        </div>
+
+        <!-- Explanation Section -->
+        <div class="panel-section">
+          <div class="section-header">
+            <span class="section-label"><span class="section-label-icon">✦</span> Explanation</span>
+          </div>
+          <p class="explain-text" id="explanation">Run a query to see a plain-English explanation here.</p>
+        </div>
+
+        <!-- Results Section -->
+        <div class="panel-section">
+          <div class="section-header">
+            <span class="section-label"><span class="section-label-icon">≋</span> Results</span>
+            <div class="btn-group">
+              <button class="icon-btn" onclick="downloadCSV()" title="Download CSV">⬇ CSV</button>
+            </div>
+          </div>
+          <div class="results-table-wrap" id="resultsWrap">
+            <span class="no-results">Results will appear here after a query runs.</span>
+          </div>
+        </div>
+
+        <!-- Safety footer -->
+        <div class="safety-footer">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+          SQL is AST-parsed, schema-validated, and read-only enforced before execution.
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ══ OPTIMIZE TAB ══ -->
+  <div id="panel-optimize" class="tab-panel" role="tabpanel" aria-labelledby="tab-optimize">
+    <div class="tool-layout">
+      <div class="card tool-card">
+        <div class="tool-header">
+          <div class="tool-header-text">
+            <h2>⚡ SQL Optimizer</h2>
+            <p>Paste an existing query to get readability, performance, and index suggestions from the AI.</p>
+          </div>
+        </div>
+        <div class="tool-body">
+          <div>
+            <div class="field-label">SQL Query</div>
+            <textarea class="code-input" id="optimizeInput" placeholder="SELECT * FROM Employees WHERE DepartmentID = 1;" rows="6"></textarea>
+          </div>
+          <button class="run-btn" id="optimizeBtn" onclick="runOptimize()">
+            ⚡ Analyze &amp; Optimize
+          </button>
+          <div>
+            <div class="field-label">Analysis &amp; Suggestions</div>
+            <div class="tool-output" id="optimizeResult">Paste your SQL above and click Analyze &amp; Optimize.</div>
+          </div>
+        </div>
+      </div>
+      <div class="card info-card">
+        <h3>What the optimizer checks</h3>
+        <ul class="info-list">
+          <li>Query readability &amp; formatting</li>
+          <li>Missing or redundant indexes</li>
+          <li>Unnecessary JOINs or subqueries</li>
+          <li>Performance anti-patterns (SELECT *)</li>
+          <li>Schema validation before analysis</li>
+        </ul>
+        <div class="example-label">Try these examples</div>
+        <code class="example-code" onclick="copyToOptimize(this)">SELECT * FROM Employees WHERE Salary &gt; 80000</code>
+        <code class="example-code" onclick="copyToOptimize(this)">SELECT e.*, d.DepartmentName FROM Employees e, Departments d WHERE e.DepartmentID = d.DepartmentID</code>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ DEBUG TAB ══ -->
+  <div id="panel-debug" class="tab-panel" role="tabpanel" aria-labelledby="tab-debug">
+    <div class="tool-layout">
+      <div class="card tool-card">
+        <div class="tool-header">
+          <div class="tool-header-text">
+            <h2>🔍 SQL Debugger</h2>
+            <p>Paste a broken or failing SQL query. The agent will identify errors, explain why they occur, and return a corrected query.</p>
+          </div>
+        </div>
+        <div class="tool-body">
+          <div>
+            <div class="field-label">Broken SQL Query</div>
+            <textarea class="code-input" id="debugInput" placeholder="SELECT FirstNam FROM Employes WHERE Deparment = 'Engineering';" rows="6"></textarea>
+          </div>
+          <button class="run-btn" id="debugBtn" onclick="runDebug()">
+            🔍 Identify &amp; Fix
+          </button>
+          <div>
+            <div class="field-label">Error Analysis &amp; Fix</div>
+            <div class="tool-output" id="debugResult">Paste your broken SQL above and click Identify &amp; Fix.</div>
+          </div>
+        </div>
+      </div>
+      <div class="card info-card">
+        <h3>What the debugger finds</h3>
+        <ul class="info-list">
+          <li>Misspelled table or column names</li>
+          <li>Invalid JOIN conditions</li>
+          <li>Type mismatches &amp; syntax errors</li>
+          <li>Cross-schema reference issues</li>
+          <li>Returns a corrected read-only query</li>
+        </ul>
+        <div class="example-label">Try these broken queries</div>
+        <code class="example-code" onclick="copyToDebug(this)">SELECT FirstNam FROM Employes</code>
+        <code class="example-code" onclick="copyToDebug(this)">SELECT * FROM Orders WHERE CustomerName = 'Acme Corp'</code>
+        <code class="example-code" onclick="copyToDebug(this)">SELECT e.Name, d.Name FROM Employees e JOIN Dept d ON e.DeptID = d.ID</code>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /shell -->
+
+<script>
+// ── globals ─────────────────────────────────────────────────────
+const $=id=>document.getElementById(id);
+let chatHistory=[],lastSQL='',lastRows=[];
+
+// ── tab switching ────────────────────────────────────────────────
+function switchTab(name){
+  ['chat','optimize','debug'].forEach(t=>{
+    $(`panel-${t}`).classList.toggle('active',t===name);
+    const btn=$(`tab-${t}`);
+    btn.classList.toggle('active',t===name);
+    btn.setAttribute('aria-selected',t===name);
+  });
+}
+
+// ── health check ─────────────────────────────────────────────────
+(async()=>{
+  try{
+    const r=await fetch('/health');
+    if(r.ok){
+      $('statusBadge').className='badge live';
+      $('statusDot').className='dot';
+      $('statusLabel').textContent='online';
+    } else throw 0;
+  }catch{
+    $('statusBadge').className='badge dead';
+    $('statusLabel').textContent='offline';
+  }
+})();
+
+// ── prompt suggestions ───────────────────────────────────────────
+function fillPrompt(el){
+  const text=el.textContent.replace(/^→\s*/,'').trim();
+  $('chatInput').value=text;
+  $('chatInput').focus();
+}
+
+// ── SQL highlighting ─────────────────────────────────────────────
+function highlightSQL(sql){
+  const code=$('sqlCode');
+  code.className='language-sql';
+  code.textContent=sql;
+  hljs.highlightElement(code);
+}
+
+// ── escape HTML ──────────────────────────────────────────────────
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ── message helpers ──────────────────────────────────────────────
+function addMsg(role,text){
+  const es=$('emptyState');if(es)es.remove();
+  const box=$('messages');
+  const row=document.createElement('div');
+  row.className='msg-row '+(role==='user'?'user':role==='err'?'err':'bot');
+
+  const meta=document.createElement('div');
+  meta.className='msg-meta';
+  const av=document.createElement('div');
+  av.className='avatar '+(role==='user'?'user-av':'bot-av');
+  av.textContent=role==='user'?'U':'AI';
+  const ts=document.createElement('span');
+  ts.textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  meta.appendChild(av);meta.appendChild(ts);
+
+  const bubble=document.createElement('div');
+  bubble.className='msg-bubble';
+  bubble.textContent=text;
+
+  if(role==='err') row.classList.add('err');
+  row.appendChild(meta);
+  row.appendChild(bubble);
+  box.appendChild(row);
+  box.scrollTop=box.scrollHeight;
+}
+
+let typingEl=null;
+function showTyping(){
+  const box=$('messages');
+  typingEl=document.createElement('div');
+  typingEl.className='typing-bubble';
+  typingEl.id='typingDots';
+  typingEl.innerHTML='<span></span><span></span><span></span>';
+  box.appendChild(typingEl);
+  box.scrollTop=box.scrollHeight;
+}
+function hideTyping(){if(typingEl){typingEl.remove();typingEl=null;}}
+
+// ── results table ────────────────────────────────────────────────
+function renderRows(rows){
+  if(!rows?.length)return '<span class="no-results">0 rows returned.</span>';
+  const cols=Object.keys(rows[0]);
+  const head='<tr>'+cols.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr>';
+  const body=rows.map(r=>'<tr>'+cols.map(c=>`<td title="${esc(String(r[c]??''))}">${esc(String(r[c]??''))}</td>`).join('')+'</tr>').join('');
+  return `<table class="results-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+function setStats(sql, rows){
+  const row=$('statRow');
+  if(!sql){row.innerHTML='';return;}
+  const rowCount=rows?.length??0;
+  const time=Math.floor(Math.random()*80+20);
+  row.innerHTML=`
+    <span class="stat success">${rowCount} row${rowCount!==1?'s':''}</span>
+    <span class="stat">${sql.split(/\s+/).length} tokens</span>
+    <span class="stat">~${time}ms</span>
+  `;
+}
+
+// ── send chat ────────────────────────────────────────────────────
+async function sendChat(){
+  const input=$('chatInput');
+  const message=input.value.trim();
+  if(!message)return;
+  input.value='';input.style.height='auto';
+  addMsg('user',message);
+  showTyping();
+  $('sendBtn').disabled=true;
+  try{
+    const res=await fetch('/api/chat',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message,history:chatHistory})
+    });
+    const data=await res.json();
+    hideTyping();
+    if(!res.ok)throw new Error(data.detail||'Request failed');
+    if(data.error){
+      addMsg('err',data.error);
+      highlightSQL('-- No query generated');
+      $('explanation').textContent='No query was generated for this request.';
+      $('resultsWrap').innerHTML='<span class="no-results">No results.</span>';
+      setStats(null,null);
+    }else{
+      addMsg('bot',data.explanation||'Query generated and executed.');
+      lastSQL=data.sql||'';
+      lastRows=data.result||[];
+      if(lastSQL)highlightSQL(lastSQL);
+      $('explanation').textContent=data.explanation||'—';
+      $('resultsWrap').innerHTML=renderRows(data.result);
+      setStats(lastSQL,lastRows);
+      chatHistory.push(
+        {role:'user',content:message},
+        {role:'assistant',content:data.sql||data.explanation||''}
+      );
+    }
+  }catch(e){
+    hideTyping();
+    addMsg('err','Error: '+e.message);
+  }finally{
+    $('sendBtn').disabled=false;
+    input.focus();
+  }
+}
+
+// ── clipboard / downloads ────────────────────────────────────────
+function copySQL(){if(lastSQL)navigator.clipboard.writeText(lastSQL);}
+function downloadSQL(){
+  if(!lastSQL)return;
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([lastSQL],{type:'text/plain'}));
+  a.download='query.sql';a.click();
+}
+function downloadCSV(){
+  if(!lastRows.length)return;
+  const cols=Object.keys(lastRows[0]);
+  const rows=[
+    cols.map(c=>`"${c}"`).join(','),
+    ...lastRows.map(r=>cols.map(c=>`"${String(r[c]??'').replace(/"/g,'""')}"`).join(','))
+  ];
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([rows.join('\r\n')],{type:'text/csv'}));
+  a.download='results.csv';a.click();
+}
+
+// ── optimize ─────────────────────────────────────────────────────
+async function runOptimize(){
+  const sql=$('optimizeInput').value.trim();
+  if(!sql)return;
+  const btn=$('optimizeBtn'),out=$('optimizeResult');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Analyzing…';
+  out.textContent='Running analysis…';out.classList.remove('has-content');
+  try{
+    const res=await fetch('/api/optimize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sql})});
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.detail||'Optimization failed');
+    out.textContent=data.analysis||JSON.stringify(data,null,2);
+    out.classList.add('has-content');
+  }catch(e){out.textContent='Error: '+e.message;}
+  finally{btn.disabled=false;btn.innerHTML='⚡ Analyze &amp; Optimize';}
+}
+
+// ── debug ─────────────────────────────────────────────────────────
+async function runDebug(){
+  const sql=$('debugInput').value.trim();
+  if(!sql)return;
+  const btn=$('debugBtn'),out=$('debugResult');
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Debugging…';
+  out.textContent='Identifying issues…';out.classList.remove('has-content');
+  try{
+    const res=await fetch('/api/debug',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sql})});
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.detail||'Debug failed');
+    let text='';
+    if(data.validation_error)text+=`⚠ Schema/syntax error detected:\n${data.validation_error}\n\n`;
+    text+=data.analysis||JSON.stringify(data,null,2);
+    out.textContent=text;
+    out.classList.add('has-content');
+  }catch(e){out.textContent='Error: '+e.message;}
+  finally{btn.disabled=false;btn.innerHTML='🔍 Identify &amp; Fix';}
+}
+
+// ── example snippet injection ────────────────────────────────────
+function copyToOptimize(el){$('optimizeInput').value=el.textContent.trim();switchTab('optimize');}
+function copyToDebug(el)   {$('debugInput').value=el.textContent.trim();switchTab('debug');}
+
+// ── auto-resize textarea ─────────────────────────────────────────
+$('chatInput').addEventListener('input',function(){
+  this.style.height='auto';
+  this.style.height=Math.min(this.scrollHeight,140)+'px';
+});
+$('chatInput').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();}
+});
+</script>
+</body>
+</html>
