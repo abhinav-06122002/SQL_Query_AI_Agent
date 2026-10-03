@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: unifyapps-sql-agent
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_BASE_URL
+        value: https://generativelanguage.googleapis.com/v1beta/openai/
+      - key: OPENAI_MODEL
+        value: gemini-3.8-flash
+      - key: DATABASE_PATH
+        value: /app/data/sample.db
+      - key: MAX_ROWS
+        value: "100"
