@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
+<style>text{font-family:Arial,sans-serif;fill:#e8ecf4}.box{fill:#151d32;stroke:#64748b;stroke-width:2}.safe{fill:#102a22;stroke:#34d399}.arrow{stroke:#94a3b8;stroke-width:3;marker-end:url(#m)}</style>
+<defs><marker id="m" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L10,3 L0,6 z" fill="#94a3b8"/></marker></defs>
+<rect width="1200" height="700" fill="#0b1020"/>
+<text x="60" y="60" font-size="30" font-weight="700">SQL Query AI Agent — LangGraph Architecture</text>
+<rect class="box" x="60" y="110" width="220" height="70" rx="14"/><text x="170" y="153" text-anchor="middle" font-size="18">User Request</text>
+<rect class="box" x="350" y="110" width="220" height="70" rx="14"/><text x="460" y="145" text-anchor="middle" font-size="18">Intent / Scope</text><text x="460" y="167" text-anchor="middle" font-size="13">SQL • clarify • reject</text>
+<rect class="box" x="640" y="110" width="220" height="70" rx="14"/><text x="750" y="153" text-anchor="middle" font-size="18">SQL Generation</text>
+<rect class="safe" x="350" y="260" width="220" height="80" rx="14"/><text x="460" y="295" text-anchor="middle" font-size="18">SQLGlot Guardrail</text><text x="460" y="317" text-anchor="middle" font-size="13">syntax + read-only</text>
+<rect class="safe" x="640" y="260" width="220" height="80" rx="14"/><text x="750" y="295" text-anchor="middle" font-size="18">Schema Validation</text><text x="750" y="317" text-anchor="middle" font-size="13">tables + columns</text>
+<rect class="box" x="930" y="260" width="180" height="80" rx="14"/><text x="1020" y="295" text-anchor="middle" font-size="17">Retry</text><text x="1020" y="317" text-anchor="middle" font-size="13">max 3 attempts</text>
+<rect class="box" x="640" y="430" width="220" height="70" rx="14"/><text x="750" y="473" text-anchor="middle" font-size="18">Explanation</text>
+<rect class="box" x="350" y="560" width="220" height="70" rx="14"/><text x="460" y="603" text-anchor="middle" font-size="18">SQLite Execution</text>
+<rect class="box" x="640" y="560" width="220" height="70" rx="14"/><text x="750" y="603" text-anchor="middle" font-size="18">UI + Results</text>
+<line class="arrow" x1="280" y1="145" x2="350" y2="145"/><line class="arrow" x1="570" y1="145" x2="640" y2="145"/><line class="arrow" x1="750" y1="180" x2="750" y2="260"/><line class="arrow" x1="640" y1="300" x2="570" y2="300"/><line class="arrow" x1="570" y1="300" x2="640" y2="300"/><line class="arrow" x1="860" y1="300" x2="930" y2="300"/><line class="arrow" x1="930" y1="340" x2="860" y2="430"/><line class="arrow" x1="750" y1="340" x2="750" y2="430"/><line class="arrow" x1="640" y1="465" x2="570" y2="560"/><line class="arrow" x1="570" y1="595" x2="640" y2="595"/>
+<text x="900" y="390" font-size="14">validation failure</text>
+<text x="90" y="660" font-size="13" fill="#94a3b8">Model proposes SQL; deterministic validation decides whether it can execute.</text>
+</svg>
