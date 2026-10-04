@@ -197,27 +197,7 @@ The live demo requires an LLM API key. The repository intentionally does not con
 3. Verify `/health` and the chat flow from the public URL.
 4. Record the demo only after testing the deployed instance.
 
-## 12. Demo script (3–5 minutes)
-
-1. **10–20 sec:** Introduce the problem and architecture.
-2. **40 sec:** Ask `Show all employees hired after January 2024` and show SQL + explanation + results.
-3. **30 sec:** Ask `Only those from California` to demonstrate conversation context.
-4. **30 sec:** Ask for `DELETE FROM Employees` / a destructive operation and show refusal.
-5. **30 sec:** Ask an unrelated question and show scope rejection.
-6. **40 sec:** Show an invalid SQL query in the debug flow.
-7. **30 sec:** Show the LangGraph diagram and deterministic validation layer.
-8. **20 sec:** Show GitHub repo and public deployment.
-
-## 13. Interview talking points
-
-- “The LLM proposes; deterministic validators dispose.”
-- “I separated intent, generation, validation, explanation, and execution so each step is observable and testable.”
-- “The most important safety property is that model output never goes directly to the database.”
-- “Schema validation prevents hallucinated tables and columns before execution.”
-- “The retry edge lets the agent self-correct without removing deterministic controls.”
-- “I kept the product focused on the assignment's highest-value workflow rather than adding unrelated agent capabilities.”
-
-## 11. Assumptions
+## 12. Assumptions
 
 The following assumptions were made during development:
 
@@ -231,7 +211,7 @@ The following assumptions were made during development:
 
 ---
 
-## 12. Prompts
+## 13. Prompts
 
 All prompts are defined in [`app/prompts.py`](app/prompts.py).
 
@@ -255,7 +235,7 @@ Diagnoses errors in user-supplied SQL against the schema. Identifies the issue, 
 
 ---
 
-## 13. Sample Queries
+## 14. Sample Queries
 
 Use these to quickly test the deployed app:
 
@@ -274,12 +254,3 @@ Use these to quickly test the deployed app:
 **Destructive (should be blocked):** `Delete all employees`, `Drop the Orders table`
 
 ---
-
-## 14. Interview talking points
-
-- "The LLM proposes; deterministic validators dispose."
-- "I separated intent, generation, validation, explanation, and execution so each step is observable and testable."
-- "The most important safety property is that model output never goes directly to the database."
-- "Schema validation prevents hallucinated tables and columns before execution."
-- "The retry edge lets the agent self-correct without removing deterministic controls."
-- "I kept the product focused on the assignment's highest-value workflow rather than adding unrelated agent capabilities."
